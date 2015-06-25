@@ -72,6 +72,15 @@ NameVirtualHost *:80
   end
 end
 
+namespace :httpd do
+  desc "Restart Apache server"
+  task :restart do
+    on roles(:all) do
+      execute :sudo, :service, :httpd, :restart
+    end
+  end
+end
+
 namespace :deploy do
 
   after :restart, :clear_cache do
@@ -84,3 +93,6 @@ namespace :deploy do
   end
 
 end
+
+after 'deploy:publishing', 'config:vhost'
+after 'deploy:publishing', 'httpd:restart'
