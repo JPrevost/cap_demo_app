@@ -33,6 +33,53 @@ set :linked_files, fetch(:linked_files, []).push('config/local_env.rb')
 
 # Default value for keep_releases is 5
 # set :keep_releases, 5
+set :rvm_ruby_version, 'ruby-2.1.3'
+
+namespace :config do
+  desc 'Create apache config file and add selinux context'
+  task :vhost do
+    on roles(:web) do
+      vhost_config = StringIO.new(%{
+LoadModule passenger_module /usr/local/rvm/gems/#{fetch(:rvm_ruby_version)}/gems/passenger-5.0.11/buildout/apache2/mod_passenger.so
+   <IfModule mod_passenger.c>
+     PassengerRoot /usr/local/rvm/gems/#{fetch(:rvm_ruby_version)}/gems/passenger-5.0.11
+     PassengerDefaultRuby /usr/local/rvm/wrappers/#{fetch(:rvm_ruby_version)}/ruby
+   </IfModule>
+
+NameVirtualHost *:80
+<VirtualHost *:80>
+  PassengerRuby /usr/local/rvm/wrappers/#{fetch(:rvm_ruby_version)}/ruby
+  PassengerFriendlyErrorPages off
+  DocumentRoot #{fetch(:deploy_to)}/current/public
+  RailsBaseURI /
+  PassengerDebugLogFile /var/log/httpd/#{fetch(:application)}-passenger.log
+  <Directory #{fetch(:deploy_to)}/current/public >
+    Options -MultiViews
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
+    Order allow,deny
+    Allow from all
+    Require all granted
+  </Directory>
+</VirtualHost>
+      })
+      tmp_file = "/tmp/#{fetch(:application)}.conf"
+      httpd_file = "/etc/httpd/conf.d/#{fetch(:application)}.conf"
+      upload! vhost_config, tmp_file
+      execute :sudo, :mv, tmp_file, httpd_file
+      execute :sudo, :chmod, "644", httpd_file
+      #execute :sudo, :chcon, "-t", "httpd_config_t", httpd_file
+    end
+  end
+end
+
+namespace :httpd do
+  desc "Restart Apache server"
+  task :restart do
+    on roles(:all) do
+      execute :sudo, :service, :httpd, :restart
+    end
+  end
+end
 
 namespace :deploy do
 
@@ -46,3 +93,6 @@ namespace :deploy do
   end
 
 end
+
+after 'deploy:publishing', 'config:vhost'
+after 'deploy:publishing', 'httpd:restart'
