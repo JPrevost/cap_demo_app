@@ -58,6 +58,7 @@ NameVirtualHost *:80
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
     Order allow,deny
     Allow from all
+    Require all granted
   </Directory>
 </VirtualHost>
       })
